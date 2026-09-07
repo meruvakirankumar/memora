@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.meruvakirankumar.memora.platform.notification.Notifier
 import com.meruvakirankumar.memora.presentation.navigation.MemoraNavHost
 import com.meruvakirankumar.memora.presentation.theme.MemoraTheme
@@ -22,6 +23,7 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
 
         notifier.ensureChannel()

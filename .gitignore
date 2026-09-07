@@ -13,6 +13,10 @@ android/.kotlin/
 *.jks
 *.keystore
 
+# Signing secrets (never commit)
+keystore.properties
+android/keystore.properties
+
 # iOS / Xcode
 ios/build/
 ios/DerivedData/

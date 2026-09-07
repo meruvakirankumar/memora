@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.Memora" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Android 12+ splash screen shown before Compose content is ready. -->
+    <style name="Theme.Memora.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Memora</item>
+    </style>
 </resources>
