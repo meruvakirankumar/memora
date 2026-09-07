@@ -10,7 +10,7 @@ import com.meruvakirankumar.memora.data.local.entity.ReminderEntity
 @Database(
     entities = [MemoryEntity::class, ReminderEntity::class],
     version = 1,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class MemoraDatabase : RoomDatabase() {
     abstract fun memoryDao(): MemoryDao
