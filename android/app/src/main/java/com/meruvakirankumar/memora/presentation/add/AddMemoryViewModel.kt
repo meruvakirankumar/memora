@@ -7,7 +7,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.meruvakirankumar.memora.core.error.AppResult
+import com.meruvakirankumar.memora.domain.model.Ambiguity
+import com.meruvakirankumar.memora.domain.model.ConfidenceLevel
 import com.meruvakirankumar.memora.domain.model.EventType
+import com.meruvakirankumar.memora.domain.model.ExtractedMemoryCandidate
+import com.meruvakirankumar.memora.domain.usecase.ExtractMemoryUseCase
 import com.meruvakirankumar.memora.domain.usecase.SaveMemoryUseCase
 import com.meruvakirankumar.memora.platform.image.TempImageStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,6 +23,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AddMemoryViewModel @Inject constructor(
     private val saveMemory: SaveMemoryUseCase,
+    private val extractMemory: ExtractMemoryUseCase,
     private val tempImageStore: TempImageStore,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -36,6 +41,46 @@ class AddMemoryViewModel @Inject constructor(
         private set
     var saving by mutableStateOf(false)
         private set
+    var extracting by mutableStateOf(false)
+        private set
+    var extractionNote by mutableStateOf<String?>(null)
+        private set
+
+    init {
+        if (imageUri != null) runExtraction(imageUri)
+    }
+
+    private fun runExtraction(uri: String) {
+        extracting = true
+        viewModelScope.launch {
+            when (val result = extractMemory(uri)) {
+                is AppResult.Success -> applyCandidate(result.value)
+                is AppResult.Failure ->
+                    extractionNote = "Memora couldn't read the image. Please enter the details manually."
+            }
+            extracting = false
+        }
+    }
+
+    private fun applyCandidate(candidate: ExtractedMemoryCandidate) {
+        candidate.suggestedTitle?.let { title = it }
+        candidate.suggestedEventType?.let { eventType = it }
+        candidate.suggestedEventDate?.let { dateText = it.toString() }
+        extractionNote = noteFor(candidate)
+    }
+
+    private fun noteFor(candidate: ExtractedMemoryCandidate): String = when {
+        candidate.suggestedEventDate == null || candidate.ambiguity == Ambiguity.HIGH ->
+            "Memora couldn't find a clear date. Please add it."
+        !candidate.hasExplicitDay ->
+            "Only a month was detected — please confirm the exact day."
+        candidate.ambiguity == Ambiguity.MEDIUM ->
+            "This date could be read two ways — please check it."
+        candidate.confidenceLevel == ConfidenceLevel.HIGH ->
+            "Memora is confident. Review and confirm."
+        else ->
+            "Please review the details before confirming."
+    }
 
     fun onTitleChange(value: String) {
         title = value

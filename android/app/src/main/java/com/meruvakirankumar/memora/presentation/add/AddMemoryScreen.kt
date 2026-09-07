@@ -89,6 +89,23 @@ fun AddMemoryScreen(
             )
         }
 
+        if (viewModel.extracting) {
+            Text("Reading image...", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+        }
+        viewModel.extractionNote?.let { note ->
+            Text(
+                note,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFEAF3EE))
+                    .padding(12.dp),
+            )
+        }
+
         FieldLabel("Title")
         OutlinedTextField(
             value = viewModel.title,
