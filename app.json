@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Memora",
+    "slug": "memora",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.meruvakirankumar.memora",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Memora uses the camera to capture real-world information you want remembered.",
+        "NSPhotoLibraryUsageDescription": "Memora lets you choose images that contain information you want remembered."
+      }
+    },
+    "android": {
+      "package": "com.meruvakirankumar.memora",
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "POST_NOTIFICATIONS"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
