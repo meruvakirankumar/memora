@@ -1,11 +1,13 @@
 package com.meruvakirankumar.memora.presentation.add
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -18,9 +20,18 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -54,6 +65,29 @@ fun AddMemoryScreen(
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.secondary,
         )
+
+        val context = LocalContext.current
+        var thumbnail by remember { mutableStateOf<ImageBitmap?>(null) }
+        LaunchedEffect(viewModel.imageUri) {
+            thumbnail = viewModel.imageUri?.let { uri ->
+                runCatching {
+                    context.contentResolver.openInputStream(android.net.Uri.parse(uri)).use { input ->
+                        android.graphics.BitmapFactory.decodeStream(input)?.asImageBitmap()
+                    }
+                }.getOrNull()
+            }
+        }
+        thumbnail?.let { bitmap ->
+            Image(
+                bitmap = bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(4f / 3f)
+                    .clip(RoundedCornerShape(16.dp)),
+            )
+        }
 
         FieldLabel("Title")
         OutlinedTextField(
@@ -106,7 +140,7 @@ fun AddMemoryScreen(
             Text(if (viewModel.saving) "Saving..." else "Confirm Memory", color = Cream, fontWeight = FontWeight.Black)
         }
 
-        TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+        TextButton(onClick = { viewModel.discard(onBack) }, modifier = Modifier.fillMaxWidth()) {
             Text("Cancel", color = MaterialTheme.colorScheme.secondary)
         }
     }

@@ -1,16 +1,19 @@
 package com.meruvakirankumar.memora.platform.image
 
 /**
- * Stores captured images temporarily for processing, then deletes them.
- * Enforces the V1 privacy rule: Memora never permanently stores images.
+ * Owns the lifecycle of captured images. Enforces the V1 privacy rule: images are
+ * temporary inputs to extraction and never become permanent application data.
  */
 interface TempImageStore {
-    /** Persist bytes to a private temporary file and return its uri. */
-    suspend fun save(bytes: ByteArray): String
+    /** A content Uri (as string) the camera can write a new full-resolution capture into. */
+    suspend fun newCaptureUri(): String
 
-    /** Delete a temporary image once extraction is complete. */
+    /** Copies an external image (e.g. from the photo picker) into private temp storage. */
+    suspend fun importImage(sourceUri: String): String
+
+    /** Deletes a single temporary image once it is confirmed or discarded. */
     suspend fun delete(uri: String)
 
-    /** Remove any temporary images left behind. */
+    /** Removes any temporary images left behind. */
     suspend fun clear()
 }
