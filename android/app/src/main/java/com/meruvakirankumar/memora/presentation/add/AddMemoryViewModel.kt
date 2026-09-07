@@ -45,6 +45,12 @@ class AddMemoryViewModel @Inject constructor(
         private set
     var extractionNote by mutableStateOf<String?>(null)
         private set
+    var reminderLeadDays by mutableStateOf(SaveMemoryUseCase.DEFAULT_LEAD_DAYS)
+        private set
+
+    fun onReminderLeadDaysChange(value: Int) {
+        reminderLeadDays = value.coerceIn(SaveMemoryUseCase.MIN_LEAD_DAYS, SaveMemoryUseCase.MAX_LEAD_DAYS)
+    }
 
     init {
         if (imageUri != null) runExtraction(imageUri)
@@ -109,7 +115,7 @@ class AddMemoryViewModel @Inject constructor(
 
         saving = true
         viewModelScope.launch {
-            when (saveMemory(title, eventType, date)) {
+            when (saveMemory(title, eventType, date, reminderLeadDays)) {
                 is AppResult.Success -> {
                     deleteCapturedImage()
                     onSaved()

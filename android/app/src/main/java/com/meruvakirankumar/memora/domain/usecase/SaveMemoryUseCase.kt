@@ -8,14 +8,18 @@ import com.meruvakirankumar.memora.core.time.AppClock
 import com.meruvakirankumar.memora.domain.model.EventType
 import com.meruvakirankumar.memora.domain.model.Memory
 import com.meruvakirankumar.memora.domain.model.MemoryStatus
+import com.meruvakirankumar.memora.domain.model.Reminder
+import com.meruvakirankumar.memora.domain.model.ReminderStatus
 import com.meruvakirankumar.memora.domain.repository.MemoryRepository
 import java.time.LocalDate
+import java.time.LocalTime
 import java.util.UUID
 import javax.inject.Inject
 
 /**
- * Creates a durable memory from user-confirmed fields. This is the CONFIRM → REMEMBER
- * boundary: only confirmed data reaches the repository.
+ * Creates a durable memory together with its initial reminder from user-confirmed fields.
+ * This is the CONFIRM → REMEMBER boundary: only confirmed data reaches the repository,
+ * and the memory + reminder are persisted in one atomic transaction.
  */
 class SaveMemoryUseCase @Inject constructor(
     private val repository: MemoryRepository,
@@ -25,6 +29,7 @@ class SaveMemoryUseCase @Inject constructor(
         title: String,
         eventType: EventType,
         eventDate: LocalDate,
+        reminderLeadDays: Int = DEFAULT_LEAD_DAYS,
     ): AppResult<Unit> {
         val cleanTitle = title.trim()
         if (cleanTitle.isEmpty()) {
@@ -33,8 +38,9 @@ class SaveMemoryUseCase @Inject constructor(
 
         return try {
             val now = clock.now()
+            val memoryId = UUID.randomUUID().toString()
             val memory = Memory(
-                id = UUID.randomUUID().toString(),
+                id = memoryId,
                 title = cleanTitle,
                 eventType = eventType,
                 eventDate = eventDate,
@@ -43,11 +49,26 @@ class SaveMemoryUseCase @Inject constructor(
                 createdAt = now,
                 updatedAt = now,
             )
-            // Reminder is null until the reminder stage; the create path is already atomic-capable.
-            repository.create(memory, reminder = null)
+            val leadDays = reminderLeadDays.coerceIn(MIN_LEAD_DAYS, MAX_LEAD_DAYS)
+            val reminder = Reminder(
+                id = UUID.randomUUID().toString(),
+                memoryId = memoryId,
+                reminderStartDate = eventDate.minusDays(leadDays.toLong()),
+                reminderTime = DEFAULT_REMINDER_TIME,
+                status = ReminderStatus.SCHEDULED,
+                completedAt = null,
+            )
+            repository.create(memory, reminder)
             Unit.asSuccess()
         } catch (e: Exception) {
             AppError.Storage(e).asFailure()
         }
+    }
+
+    companion object {
+        const val MIN_LEAD_DAYS = 1
+        const val MAX_LEAD_DAYS = 10
+        const val DEFAULT_LEAD_DAYS = 1
+        val DEFAULT_REMINDER_TIME: LocalTime = LocalTime.of(9, 0)
     }
 }

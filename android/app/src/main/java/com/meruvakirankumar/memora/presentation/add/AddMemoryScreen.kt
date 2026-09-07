@@ -147,6 +147,24 @@ fun AddMemoryScreen(
             Text(message, color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
         }
 
+        FieldLabel("Remind me this many days before")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            (1..10).forEach { days ->
+                val selected = viewModel.reminderLeadDays == days
+                Text(
+                    text = days.toString(),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (selected) Cream else ChipInk,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(if (selected) DarkGreen else ChipBg)
+                        .clickable { viewModel.onReminderLeadDaysChange(days) }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                )
+            }
+        }
+
         Button(
             onClick = { viewModel.save(onSaved) },
             enabled = !viewModel.saving,
