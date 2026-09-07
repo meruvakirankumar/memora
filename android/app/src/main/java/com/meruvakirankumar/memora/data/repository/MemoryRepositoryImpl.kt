@@ -1,10 +1,14 @@
 package com.meruvakirankumar.memora.data.repository
 
+import androidx.room.withTransaction
 import com.meruvakirankumar.memora.core.di.IoDispatcher
+import com.meruvakirankumar.memora.data.local.MemoraDatabase
 import com.meruvakirankumar.memora.data.local.dao.MemoryDao
+import com.meruvakirankumar.memora.data.local.dao.ReminderDao
 import com.meruvakirankumar.memora.data.local.mapper.toDomain
 import com.meruvakirankumar.memora.data.local.mapper.toEntity
 import com.meruvakirankumar.memora.domain.model.Memory
+import com.meruvakirankumar.memora.domain.model.Reminder
 import com.meruvakirankumar.memora.domain.repository.MemoryRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -13,25 +17,35 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 class MemoryRepositoryImpl @Inject constructor(
-    private val dao: MemoryDao,
+    private val database: MemoraDatabase,
+    private val memoryDao: MemoryDao,
+    private val reminderDao: ReminderDao,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : MemoryRepository {
 
     override fun observeAll(): Flow<List<Memory>> =
-        dao.observeAll().map { list -> list.map { it.toDomain() } }
+        memoryDao.observeAll().map { list -> list.map { it.toDomain() } }
 
     override fun observe(id: String): Flow<Memory?> =
-        dao.observe(id).map { it?.toDomain() }
+        memoryDao.observe(id).map { it?.toDomain() }
 
     override suspend fun getById(id: String): Memory? = withContext(ioDispatcher) {
-        dao.getById(id)?.toDomain()
+        memoryDao.getById(id)?.toDomain()
+    }
+
+    override suspend fun create(memory: Memory, reminder: Reminder?) = withContext(ioDispatcher) {
+        // One creation transaction: a failure never leaves a half-created memory/reminder pair.
+        database.withTransaction {
+            memoryDao.upsert(memory.toEntity())
+            reminder?.let { reminderDao.upsert(it.toEntity()) }
+        }
     }
 
     override suspend fun upsert(memory: Memory) = withContext(ioDispatcher) {
-        dao.upsert(memory.toEntity())
+        memoryDao.upsert(memory.toEntity())
     }
 
     override suspend fun delete(id: String) = withContext(ioDispatcher) {
-        dao.deleteById(id)
+        memoryDao.deleteById(id)
     }
 }

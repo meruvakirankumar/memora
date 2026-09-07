@@ -42,7 +42,7 @@ class MemoryStatusCalculatorTest {
     private fun memory(date: LocalDate, status: MemoryStatus = MemoryStatus.UPCOMING) = Memory(
         id = "mem",
         title = "Milk",
-        eventType = EventType.EXPIRATION,
+        eventType = EventType.EXPIRY,
         eventDate = date,
         timeZone = ZoneId.of("UTC"),
         status = status,

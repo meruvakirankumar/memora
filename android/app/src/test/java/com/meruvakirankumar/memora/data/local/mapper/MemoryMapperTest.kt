@@ -16,7 +16,7 @@ class MemoryMapperTest {
         val original = Memory(
             id = "mem-1",
             title = "Milk",
-            eventType = EventType.EXPIRATION,
+            eventType = EventType.EXPIRY,
             eventDate = LocalDate.of(2027, 8, 31),
             timeZone = ZoneId.of("UTC"),
             status = MemoryStatus.UPCOMING,

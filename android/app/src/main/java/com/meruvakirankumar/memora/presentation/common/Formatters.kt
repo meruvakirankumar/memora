@@ -14,11 +14,13 @@ fun formatDate(date: LocalDate): String =
     "${MONTHS[date.monthValue - 1]} ${date.dayOfMonth}, ${date.year}"
 
 fun EventType.displayLabel(): String = when (this) {
-    EventType.EXPIRATION -> "Expiration"
-    EventType.PAYMENT -> "Payment"
-    EventType.RETURN -> "Return"
-    EventType.WARRANTY -> "Warranty"
-    EventType.RENEWAL -> "Renewal"
+    EventType.EXPIRY -> "Expiry"
+    EventType.BEST_BEFORE -> "Best Before"
+    EventType.USE_BY -> "Use By"
+    EventType.BILL_DUE -> "Bill Due"
+    EventType.RETURN_DEADLINE -> "Return"
+    EventType.WARRANTY_END -> "Warranty"
+    EventType.SUBSCRIPTION_END -> "Subscription"
     EventType.DOCUMENT_EXPIRY -> "Document"
     EventType.GENERAL -> "General"
 }

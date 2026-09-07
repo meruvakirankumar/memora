@@ -1,12 +1,14 @@
 package com.meruvakirankumar.memora.domain.model
 
-/** The kind of actionable event a memory represents. */
+/** The kind of actionable event a memory represents. Extensible; V1 covers the common cases. */
 enum class EventType {
-    EXPIRATION,
-    PAYMENT,
-    RETURN,
-    WARRANTY,
-    RENEWAL,
+    EXPIRY,
+    BEST_BEFORE,
+    USE_BY,
+    BILL_DUE,
+    RETURN_DEADLINE,
+    WARRANTY_END,
+    SUBSCRIPTION_END,
     DOCUMENT_EXPIRY,
     GENERAL,
 }

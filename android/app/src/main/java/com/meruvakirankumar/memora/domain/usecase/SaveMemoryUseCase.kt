@@ -43,7 +43,8 @@ class SaveMemoryUseCase @Inject constructor(
                 createdAt = now,
                 updatedAt = now,
             )
-            repository.upsert(memory)
+            // Reminder is null until the reminder stage; the create path is already atomic-capable.
+            repository.create(memory, reminder = null)
             Unit.asSuccess()
         } catch (e: Exception) {
             AppError.Storage(e).asFailure()

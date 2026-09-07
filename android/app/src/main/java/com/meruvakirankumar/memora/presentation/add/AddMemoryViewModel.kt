@@ -21,7 +21,7 @@ class AddMemoryViewModel @Inject constructor(
 
     var title by mutableStateOf("")
         private set
-    var eventType by mutableStateOf(EventType.EXPIRATION)
+    var eventType by mutableStateOf(EventType.EXPIRY)
         private set
     var dateText by mutableStateOf("")
         private set
