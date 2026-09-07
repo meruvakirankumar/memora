@@ -9,8 +9,14 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ReminderDao {
 
+    @Query("SELECT * FROM reminders ORDER BY reminderStartDate ASC")
+    fun observeAll(): Flow<List<ReminderEntity>>
+
     @Query("SELECT * FROM reminders WHERE memoryId = :memoryId ORDER BY reminderStartDate ASC")
     fun observeByMemory(memoryId: String): Flow<List<ReminderEntity>>
+
+    @Query("SELECT * FROM reminders WHERE memoryId = :memoryId LIMIT 1")
+    suspend fun getByMemory(memoryId: String): ReminderEntity?
 
     @Query("SELECT * FROM reminders WHERE id = :id")
     suspend fun getById(id: String): ReminderEntity?

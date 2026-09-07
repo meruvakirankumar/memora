@@ -9,6 +9,7 @@ interface MemoryRepository {
     fun observeAll(): Flow<List<Memory>>
     fun observe(id: String): Flow<Memory?>
     suspend fun getById(id: String): Memory?
+    suspend fun getAll(): List<Memory>
 
     /** Atomically persists a memory together with its optional initial reminder. */
     suspend fun create(memory: Memory, reminder: Reminder?)

@@ -7,12 +7,14 @@ import com.meruvakirankumar.memora.core.error.asSuccess
 import com.meruvakirankumar.memora.core.time.AppClock
 import com.meruvakirankumar.memora.domain.model.MemoryStatus
 import com.meruvakirankumar.memora.domain.repository.MemoryRepository
+import com.meruvakirankumar.memora.domain.scheduling.ReminderScheduler
 import javax.inject.Inject
 
 /** Marks a memory as handled so future reminders stop. */
 class CompleteMemoryUseCase @Inject constructor(
     private val repository: MemoryRepository,
     private val clock: AppClock,
+    private val scheduler: ReminderScheduler,
 ) {
     suspend operator fun invoke(memoryId: String): AppResult<Unit> {
         val existing = repository.getById(memoryId)
@@ -22,6 +24,7 @@ class CompleteMemoryUseCase @Inject constructor(
             repository.upsert(
                 existing.copy(status = MemoryStatus.COMPLETED, updatedAt = clock.now()),
             )
+            scheduler.cancel(memoryId)
             Unit.asSuccess()
         } catch (e: Exception) {
             AppError.Storage(e).asFailure()

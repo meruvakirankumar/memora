@@ -17,8 +17,15 @@ class ReminderRepositoryImpl @Inject constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : ReminderRepository {
 
+    override fun observeAll(): Flow<List<Reminder>> =
+        dao.observeAll().map { list -> list.map { it.toDomain() } }
+
     override fun observeByMemory(memoryId: String): Flow<List<Reminder>> =
         dao.observeByMemory(memoryId).map { list -> list.map { it.toDomain() } }
+
+    override suspend fun getByMemory(memoryId: String): Reminder? = withContext(ioDispatcher) {
+        dao.getByMemory(memoryId)?.toDomain()
+    }
 
     override suspend fun getById(id: String): Reminder? = withContext(ioDispatcher) {
         dao.getById(id)?.toDomain()

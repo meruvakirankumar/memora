@@ -24,6 +24,7 @@ import javax.inject.Inject
 class SaveMemoryUseCase @Inject constructor(
     private val repository: MemoryRepository,
     private val clock: AppClock,
+    private val scheduleReminder: ScheduleReminderUseCase,
 ) {
     suspend operator fun invoke(
         title: String,
@@ -59,6 +60,8 @@ class SaveMemoryUseCase @Inject constructor(
                 completedAt = null,
             )
             repository.create(memory, reminder)
+            // Scheduling is a separate concern from the persistence transaction.
+            scheduleReminder(memoryId)
             Unit.asSuccess()
         } catch (e: Exception) {
             AppError.Storage(e).asFailure()

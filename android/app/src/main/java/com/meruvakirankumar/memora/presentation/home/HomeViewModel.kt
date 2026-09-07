@@ -2,8 +2,8 @@ package com.meruvakirankumar.memora.presentation.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.meruvakirankumar.memora.domain.model.Memory
 import com.meruvakirankumar.memora.domain.model.MemoryStatus
+import com.meruvakirankumar.memora.domain.model.MemoryWithReminder
 import com.meruvakirankumar.memora.domain.service.MemoryStatusCalculator
 import com.meruvakirankumar.memora.domain.usecase.CompleteMemoryUseCase
 import com.meruvakirankumar.memora.domain.usecase.DeleteMemoryUseCase
@@ -25,7 +25,7 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
 
     val uiState: StateFlow<HomeUiState> = observeMemories()
-        .map { memories -> buildState(memories) }
+        .map { items -> buildState(items) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
     fun complete(id: String) {
@@ -36,14 +36,15 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { deleteMemory(id) }
     }
 
-    private fun buildState(memories: List<Memory>): HomeUiState {
-        val items = memories.map { memory ->
+    private fun buildState(source: List<MemoryWithReminder>): HomeUiState {
+        val items = source.map { entry ->
+            val memory = entry.memory
             MemoryUi(
                 id = memory.id,
                 title = memory.title,
                 eventType = memory.eventType,
                 eventDate = memory.eventDate,
-                status = statusCalculator.status(memory),
+                status = statusCalculator.status(memory, entry.reminder?.reminderStartDate),
             )
         }
 
@@ -57,7 +58,7 @@ class HomeViewModel @Inject constructor(
             completed = completed,
             overdue = active.count { it.status == MemoryStatus.OVERDUE },
             dueToday = active.count { it.status == MemoryStatus.DUE_TODAY },
-            upcoming = active.count { it.status == MemoryStatus.UPCOMING },
+            upcoming = active.count { it.status == MemoryStatus.UPCOMING || it.status == MemoryStatus.REMINDER_ACTIVE },
         )
     }
 }

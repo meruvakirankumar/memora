@@ -1,9 +1,13 @@
 package com.meruvakirankumar.memora.platform.di
 
 import com.meruvakirankumar.memora.domain.extraction.TextExtractor
+import com.meruvakirankumar.memora.domain.scheduling.ReminderScheduler
 import com.meruvakirankumar.memora.platform.image.AndroidTempImageStore
 import com.meruvakirankumar.memora.platform.image.TempImageStore
+import com.meruvakirankumar.memora.platform.notification.AndroidNotifier
+import com.meruvakirankumar.memora.platform.notification.Notifier
 import com.meruvakirankumar.memora.platform.ocr.MlKitTextExtractor
+import com.meruvakirankumar.memora.platform.scheduling.AlarmReminderScheduler
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -21,4 +25,12 @@ abstract class PlatformModule {
     @Binds
     @Singleton
     abstract fun bindTextExtractor(impl: MlKitTextExtractor): TextExtractor
+
+    @Binds
+    @Singleton
+    abstract fun bindNotifier(impl: AndroidNotifier): Notifier
+
+    @Binds
+    @Singleton
+    abstract fun bindReminderScheduler(impl: AlarmReminderScheduler): ReminderScheduler
 }

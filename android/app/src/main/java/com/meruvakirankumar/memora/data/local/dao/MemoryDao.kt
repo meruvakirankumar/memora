@@ -19,6 +19,9 @@ interface MemoryDao {
     @Query("SELECT * FROM memories WHERE id = :id")
     suspend fun getById(id: String): MemoryEntity?
 
+    @Query("SELECT * FROM memories")
+    suspend fun getAll(): List<MemoryEntity>
+
     @Upsert
     suspend fun upsert(memory: MemoryEntity)
 

@@ -33,6 +33,10 @@ class MemoryRepositoryImpl @Inject constructor(
         memoryDao.getById(id)?.toDomain()
     }
 
+    override suspend fun getAll(): List<Memory> = withContext(ioDispatcher) {
+        memoryDao.getAll().map { it.toDomain() }
+    }
+
     override suspend fun create(memory: Memory, reminder: Reminder?) = withContext(ioDispatcher) {
         // One creation transaction: a failure never leaves a half-created memory/reminder pair.
         database.withTransaction {

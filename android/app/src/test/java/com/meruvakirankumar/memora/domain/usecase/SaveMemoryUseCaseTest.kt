@@ -7,6 +7,8 @@ import com.meruvakirankumar.memora.domain.model.Memory
 import com.meruvakirankumar.memora.domain.model.Reminder
 import com.meruvakirankumar.memora.domain.model.ReminderStatus
 import com.meruvakirankumar.memora.domain.repository.MemoryRepository
+import com.meruvakirankumar.memora.domain.repository.ReminderRepository
+import com.meruvakirankumar.memora.domain.scheduling.ReminderScheduler
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -28,6 +30,7 @@ class SaveMemoryUseCaseTest {
         override fun observeAll(): Flow<List<Memory>> = flowOf(emptyList())
         override fun observe(id: String): Flow<Memory?> = flowOf(null)
         override suspend fun getById(id: String): Memory? = memory
+        override suspend fun getAll(): List<Memory> = listOfNotNull(memory)
         override suspend fun create(memory: Memory, reminder: Reminder?) {
             this.memory = memory
             this.reminder = reminder
@@ -36,12 +39,30 @@ class SaveMemoryUseCaseTest {
         override suspend fun delete(id: String) {}
     }
 
+    private class NoopReminderRepository : ReminderRepository {
+        override fun observeAll(): Flow<List<Reminder>> = flowOf(emptyList())
+        override fun observeByMemory(memoryId: String): Flow<List<Reminder>> = flowOf(emptyList())
+        override suspend fun getByMemory(memoryId: String): Reminder? = null
+        override suspend fun getById(id: String): Reminder? = null
+        override suspend fun upsert(reminder: Reminder) {}
+        override suspend fun delete(id: String) {}
+    }
+
+    private class NoopScheduler : ReminderScheduler {
+        override fun schedule(memoryId: String, at: Instant) {}
+        override fun cancel(memoryId: String) {}
+    }
+
+    private fun useCase(repo: RecordingRepository): SaveMemoryUseCase {
+        val schedule = ScheduleReminderUseCase(repo, NoopReminderRepository(), NoopScheduler(), clock)
+        return SaveMemoryUseCase(repo, clock, schedule)
+    }
+
     @Test
     fun `creates memory with reminder offset by lead days`() = runTest {
         val repo = RecordingRepository()
-        val useCase = SaveMemoryUseCase(repo, clock)
 
-        val result = useCase("Milk", EventType.EXPIRY, LocalDate.of(2027, 8, 31), reminderLeadDays = 3)
+        val result = useCase(repo)("Milk", EventType.EXPIRY, LocalDate.of(2027, 8, 31), reminderLeadDays = 3)
 
         assertTrue(result is AppResult.Success)
         assertEquals(LocalDate.of(2027, 8, 28), repo.reminder?.reminderStartDate)
@@ -53,9 +74,8 @@ class SaveMemoryUseCaseTest {
     @Test
     fun `defaults to one day before`() = runTest {
         val repo = RecordingRepository()
-        val useCase = SaveMemoryUseCase(repo, clock)
 
-        useCase("Milk", EventType.EXPIRY, LocalDate.of(2027, 8, 31))
+        useCase(repo)("Milk", EventType.EXPIRY, LocalDate.of(2027, 8, 31))
 
         assertEquals(LocalDate.of(2027, 8, 30), repo.reminder?.reminderStartDate)
     }
@@ -63,9 +83,8 @@ class SaveMemoryUseCaseTest {
     @Test
     fun `rejects a blank title`() = runTest {
         val repo = RecordingRepository()
-        val useCase = SaveMemoryUseCase(repo, clock)
 
-        val result = useCase("   ", EventType.EXPIRY, LocalDate.of(2027, 8, 31))
+        val result = useCase(repo)("   ", EventType.EXPIRY, LocalDate.of(2027, 8, 31))
 
         assertTrue(result is AppResult.Failure)
         assertEquals(null, repo.memory)

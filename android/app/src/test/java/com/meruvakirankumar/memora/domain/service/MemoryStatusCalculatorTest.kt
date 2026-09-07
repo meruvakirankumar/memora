@@ -34,6 +34,24 @@ class MemoryStatusCalculatorTest {
     }
 
     @Test
+    fun `future date within reminder window is reminder active`() {
+        val status = calculator.status(
+            memory(LocalDate.of(2026, 9, 10)),
+            reminderStartDate = LocalDate.of(2026, 9, 6),
+        )
+        assertEquals(MemoryStatus.REMINDER_ACTIVE, status)
+    }
+
+    @Test
+    fun `future date before reminder window is upcoming`() {
+        val status = calculator.status(
+            memory(LocalDate.of(2026, 9, 20)),
+            reminderStartDate = LocalDate.of(2026, 9, 15),
+        )
+        assertEquals(MemoryStatus.UPCOMING, status)
+    }
+
+    @Test
     fun `completed status overrides date`() {
         val completed = memory(LocalDate.of(2026, 9, 6), MemoryStatus.COMPLETED)
         assertEquals(MemoryStatus.COMPLETED, calculator.status(completed))
