@@ -56,10 +56,16 @@ export default function App() {
 
   useEffect(() => {
     loadMemories();
+    registerNotificationChannel();
   }, []);
 
   const activeMemories = useMemo(
     () => memories.filter((memory) => getMemoryStatus(memory) !== 'completed'),
+    [memories],
+  );
+
+  const completedMemories = useMemo(
+    () => memories.filter((memory) => getMemoryStatus(memory) === 'completed'),
     [memories],
   );
 
@@ -164,6 +170,16 @@ export default function App() {
           : memory,
       ),
     );
+  }
+
+  async function deleteMemory(memoryId: string) {
+    const target = memories.find((memory) => memory.id === memoryId);
+
+    if (target?.notificationId) {
+      await Notifications.cancelScheduledNotificationAsync(target.notificationId);
+    }
+
+    await persistMemories(memories.filter((memory) => memory.id !== memoryId));
   }
 
   return (
@@ -303,10 +319,45 @@ export default function App() {
               })
             )}
           </View>
+
+          {completedMemories.length > 0 && (
+            <View style={styles.panel}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Completed</Text>
+                <Text style={styles.sectionStep}>{completedMemories.length}</Text>
+              </View>
+
+              {completedMemories.map((memory) => (
+                <View key={memory.id} style={styles.completedCard}>
+                  <View style={styles.memoryCardHeader}>
+                    <Text style={styles.completedTitle}>{memory.title}</Text>
+                    <View style={[styles.statusBadge, styles.completed]}>
+                      <Text style={styles.statusText}>Completed</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.memoryMeta}>{toTitleCase(memory.eventType)} on {formatDate(memory.dateISO)}</Text>
+                  <Pressable style={styles.deleteButton} onPress={() => deleteMemory(memory.id)}>
+                    <Text style={styles.deleteButtonText}>Delete</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+}
+
+async function registerNotificationChannel() {
+  if (Platform.OS !== 'android') {
+    return;
+  }
+
+  await Notifications.setNotificationChannelAsync('memora-reminders', {
+    name: 'Memora Reminders',
+    importance: Notifications.AndroidImportance.HIGH,
+  });
 }
 
 async function scheduleReminder(candidate: MemoryCandidate) {
@@ -333,6 +384,7 @@ async function scheduleReminder(candidate: MemoryCandidate) {
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date: reminderDate,
+      channelId: 'memora-reminders',
     },
   });
 }
@@ -777,6 +829,35 @@ const styles = StyleSheet.create({
   },
   completeButtonText: {
     color: '#FFFDF7',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  completedCard: {
+    backgroundColor: '#EEF4EA',
+    borderRadius: 14,
+    gap: 10,
+    opacity: 0.9,
+    padding: 14,
+  },
+  completedTitle: {
+    color: '#3C4A44',
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '900',
+    textDecorationLine: 'line-through',
+  },
+  deleteButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderColor: '#C0463040',
+    borderRadius: 999,
+    borderWidth: 1,
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  deleteButtonText: {
+    color: '#B23D28',
     fontSize: 13,
     fontWeight: '900',
   },
