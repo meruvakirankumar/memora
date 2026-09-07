@@ -84,10 +84,11 @@ S5 Reminders   S6 Notifications  S7 Home UX  S8 Hardening  S9 Release  S10 iOS
 
 Current state:
 
-- **Android** — Stage 0 (Foundation): layered architecture, Hilt DI, Room data
-  layer, domain model, platform contracts, error model, Clock abstraction, and a
-  unit-test foundation. No capture/OCR/reminder features yet; the screen is a
-  placeholder confirming the wiring.
+- **Android** — Layered foundation plus the first frontend: a Home screen
+  (urgency-sorted memory list with an attention summary and completed section)
+  and an Add/Confirm screen, wired through use cases to the Room-backed
+  repository. Capture and OCR are stubbed for their later stages, so the confirm
+  screen currently uses manual entry.
 - **iOS** — earlier prototype, untouched during the Android-first stages.
 
 ## Build & Run
