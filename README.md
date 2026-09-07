@@ -43,22 +43,23 @@ changing the confirmation or reminder flow.
 ## Project Structure
 
 ```text
-android/                         Native Android app (Kotlin + Compose)
+android/                         Native Android app (Kotlin + Compose, layered)
   settings.gradle.kts
   build.gradle.kts
+  gradle/libs.versions.toml      Dependency version catalog
   app/
     build.gradle.kts
     src/main/AndroidManifest.xml
     src/main/java/com/meruvakirankumar/memora/
-      MainActivity.kt            Android entry point
-      model/Memory.kt
-      logic/MemoryExtractor.kt
-      logic/MemoryStatusResolver.kt
-      data/MemoryRepository.kt
-      notifications/...          Channel, scheduler, receiver
-      ui/...                     Compose screen + view model
+      MemoraApplication.kt       Hilt application
+      core/                      error model, AppResult, Clock, DI qualifiers
+      domain/                    model, repository contracts, extraction contracts
+      data/                      Room entities, DAOs, database, mappers, repos, DI
+      platform/                  OCR, notification, scheduling, temp-image contracts
+      presentation/              MainActivity (entry), theme, screens
+    src/test/                    JVM unit tests (clock, mapper, result)
 
-ios/                             Native iOS app (Swift + SwiftUI)
+ios/                             Native iOS app (Swift + SwiftUI) — prototype
   Memora.xcodeproj
   Memora/
     MemoraApp.swift              iOS entry point
@@ -70,6 +71,24 @@ ios/                             Native iOS app (Swift + SwiftUI)
     Data/MemoryStore.swift
     Notifications/ReminderScheduler.swift
 ```
+
+## Development Stages
+
+Memora is built stage by stage, Android first, then native iOS around the same
+domain contract:
+
+```text
+S0 Foundation  S1 Base App  S2 Capture  S3 Extraction  S4 Confirmation
+S5 Reminders   S6 Notifications  S7 Home UX  S8 Hardening  S9 Release  S10 iOS
+```
+
+Current state:
+
+- **Android** — Stage 0 (Foundation): layered architecture, Hilt DI, Room data
+  layer, domain model, platform contracts, error model, Clock abstraction, and a
+  unit-test foundation. No capture/OCR/reminder features yet; the screen is a
+  placeholder confirming the wiring.
+- **iOS** — earlier prototype, untouched during the Android-first stages.
 
 ## Build & Run
 
