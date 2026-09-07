@@ -2,169 +2,109 @@ package com.meruvakirankumar.memora.domain.extraction
 
 import com.meruvakirankumar.memora.domain.model.Ambiguity
 import com.meruvakirankumar.memora.domain.model.ConfidenceLevel
-import com.meruvakirankumar.memora.domain.model.DateAlternative
+import com.meruvakirankumar.memora.domain.model.DateResolution
 import com.meruvakirankumar.memora.domain.model.EventType
 import com.meruvakirankumar.memora.domain.model.ExtractedMemoryCandidate
 import java.time.LocalDate
-import java.time.YearMonth
 import javax.inject.Inject
 
 /**
- * Deterministic, pattern-based extractor. Core rule: never invent an actionable date.
- * When a date is missing or the day is unknown, that uncertainty is reported (ambiguity /
- * hasExplicitDay), never silently fabricated.
+ * Deterministic extractor: scans every date, classifies each by its nearby label,
+ * selects the actionable one (never a manufacturing date, never fabricated), and
+ * reports what the user must resolve (order, day, or choice).
  */
 class DefaultMemoryExtractor @Inject constructor() : MemoryExtractor {
 
     override fun extract(normalizedText: String, rawText: String): ExtractedMemoryCandidate {
-        val upper = normalizedText.uppercase()
         val lines = normalizedText.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
-        val upperLines = lines.map { it.uppercase() }
-
-        val eventType = detectEventType(upper)
-        val parsed = parseDate(upperLines)
+        val labeledDates = collectLabeledDates(lines)
+        val selection = select(labeledDates)
+        val eventType = selection.eventType ?: fallbackEventType(normalizedText.uppercase())
         val title = extractTitle(lines)
 
-        val confidence = scoreConfidence(eventType, parsed)
         val level = when {
-            confidence >= 0.7f -> ConfidenceLevel.HIGH
-            confidence >= 0.4f -> ConfidenceLevel.MEDIUM
+            selection.confidence >= 0.7f -> ConfidenceLevel.HIGH
+            selection.confidence >= 0.4f -> ConfidenceLevel.MEDIUM
             else -> ConfidenceLevel.LOW
-        }
-        val ambiguity = when {
-            parsed.date == null -> Ambiguity.HIGH
-            parsed.ambiguousOrder -> Ambiguity.MEDIUM
-            !parsed.hasExplicitDay -> Ambiguity.LOW
-            else -> Ambiguity.NONE
         }
 
         return ExtractedMemoryCandidate(
             suggestedTitle = title,
             suggestedEventType = eventType.takeIf { it != EventType.GENERAL },
-            suggestedEventDate = parsed.date,
-            confidence = confidence,
+            suggestedEventDate = selection.date,
+            confidence = selection.confidence,
             confidenceLevel = level,
-            ambiguity = ambiguity,
-            alternatives = parsed.alternatives,
-            hasExplicitDay = parsed.hasExplicitDay,
+            ambiguity = selection.ambiguity,
+            resolutionRequired = selection.resolution,
+            dateOptions = selection.options,
+            hasExplicitDay = selection.hasExplicitDay,
             rawOcrText = rawText,
             normalizedText = normalizedText,
         )
     }
 
-    private fun detectEventType(upper: String): EventType = when {
-        Regex("USE BY").containsMatchIn(upper) -> EventType.USE_BY
-        Regex("BEST BEFORE|BEST BY|\\bBB\\b").containsMatchIn(upper) -> EventType.BEST_BEFORE
-        Regex("\\bEXP|EXPIR").containsMatchIn(upper) -> EventType.EXPIRY
-        Regex("PAY BY|AMOUNT DUE|\\bDUE\\b|\\bBILL\\b|INVOICE").containsMatchIn(upper) -> EventType.BILL_DUE
-        Regex("RETURN|EXCHANGE").containsMatchIn(upper) -> EventType.RETURN_DEADLINE
-        Regex("WARRANTY|GUARANTEE").containsMatchIn(upper) -> EventType.WARRANTY_END
-        Regex("SUBSCRIPTION|RENEW").containsMatchIn(upper) -> EventType.SUBSCRIPTION_END
-        Regex("PASSPORT|LICEN[SC]E|VALID (THRU|UNTIL|TILL)").containsMatchIn(upper) -> EventType.DOCUMENT_EXPIRY
-        else -> EventType.GENERAL
-    }
-
-    private data class ParsedDate(
-        val date: LocalDate?,
-        val hasExplicitDay: Boolean,
-        val ambiguousOrder: Boolean,
-        val alternatives: List<DateAlternative>,
-    )
-
-    private fun parseDate(upperLines: List<String>): ParsedDate {
-        // 1. Prefer a date on a line carrying an actionable label (EXP, DUE, USE BY...).
-        upperLines.forEach { line ->
-            if (actionableRegex.containsMatchIn(line)) {
-                findDateInLine(line)?.let { return it }
+    private fun collectLabeledDates(lines: List<String>): List<LabeledDate> {
+        val result = mutableListOf<LabeledDate>()
+        for (line in lines) {
+            val (role, eventType) = DateRoleClassifier.classify(line.uppercase())
+            val permitBare = role in ACTIONABLE_ROLES
+            DateTokenizer.tokens(line, permitBareMonthYear = permitBare).forEach { token ->
+                result += LabeledDate(role, eventType, token)
             }
         }
-        // 2. Otherwise consider dates on lines that are NOT manufacturing/batch info.
-        val candidates = upperLines
-            .filter { !nonActionableRegex.containsMatchIn(it) }
-            .mapNotNull { findDateInLine(it) }
-        val distinctDates = candidates.mapNotNull { it.date }.distinct()
-        // A single clear date is usable; multiple or none stays unresolved (ask the user).
-        return if (distinctDates.size == 1) {
-            candidates.first { it.date == distinctDates.first() }
-        } else {
-            noDate()
-        }
+        return result
     }
 
-    private fun findDateInLine(line: String): ParsedDate? {
-        fullDateRegex.find(line)?.let { match ->
-            return interpretFullDate(match.groupValues[1], match.groupValues[2], match.groupValues[3])
+    private fun select(labeled: List<LabeledDate>): Selection {
+        if (labeled.isEmpty()) return Selection.noDate()
+
+        val manufactureDates = labeled
+            .filter { it.role == DateRole.MANUFACTURE }
+            .flatMap { it.token.distinctDates }
+
+        for (role in ROLE_PRIORITY) {
+            val forRole = labeled.filter { it.role == role }
+            if (forRole.isNotEmpty()) return resolve(forRole, role, manufactureDates)
         }
-        monthYearRegex.find(line)?.let { match ->
-            return interpretMonthYear(match.groupValues[1], match.groupValues[2])
-        }
-        return null
+
+        val unlabeled = labeled.filter { it.role == DateRole.UNLABELED }
+        if (unlabeled.isNotEmpty()) return resolve(unlabeled, DateRole.UNLABELED, manufactureDates)
+
+        // Only manufacturing dates present: nothing actionable to remember.
+        return Selection.noDate()
     }
 
-    private fun noDate() = ParsedDate(date = null, hasExplicitDay = false, ambiguousOrder = false, alternatives = emptyList())
+    private fun resolve(
+        candidates: List<LabeledDate>,
+        role: DateRole,
+        manufactureDates: List<LocalDate>,
+    ): Selection {
+        val eventType = candidates.firstNotNullOfOrNull { it.eventType }
+        val tokens = candidates.map { it.token }
+        val distinctDates = tokens.flatMap { it.distinctDates }.distinct()
 
-    private fun interpretFullDate(a: String, b: String, c: String): ParsedDate {
-        val first = a.toInt()
-        val second = b.toInt()
-        val year = normalizeYear(c.toInt())
+        if (distinctDates.size > 1) {
+            // For an expiry, the actionable date is the latest — but only if every reading is unambiguous.
+            val allSimple = tokens.all { !it.ambiguous && !it.monthOnly }
+            if (role == DateRole.EXPIRY && allSimple) {
+                return Selection.single(distinctDates.max(), hasExplicitDay = true, eventType, manufactureDates)
+            }
+            return Selection.choose(distinctDates.sorted(), eventType)
+        }
 
+        val token = tokens.first { it.distinctDates.isNotEmpty() }
         return when {
-            first > 12 && second <= 12 -> {
-                // Day/Month/Year
-                ParsedDate(safeDate(year, second, first), hasExplicitDay = true, ambiguousOrder = false, alternatives = emptyList())
-            }
-            second > 12 && first <= 12 -> {
-                // Month/Day/Year
-                ParsedDate(safeDate(year, first, second), hasExplicitDay = true, ambiguousOrder = false, alternatives = emptyList())
-            }
-            first <= 12 && second <= 12 -> {
-                // Ambiguous order: default Month/Day, offer Day/Month as an alternative.
-                val primary = safeDate(year, first, second)
-                val alternative = safeDate(year, second, first)
-                ParsedDate(
-                    date = primary,
-                    hasExplicitDay = true,
-                    ambiguousOrder = primary != alternative,
-                    alternatives = if (primary != alternative) {
-                        listOf(DateAlternative(alternative, null, 0.5f))
-                    } else {
-                        emptyList()
-                    },
-                )
-            }
-            else -> ParsedDate(date = null, hasExplicitDay = false, ambiguousOrder = false, alternatives = emptyList())
+            token.ambiguous -> Selection.pickOrder(token.distinctDates, token.primary, eventType)
+            token.monthOnly -> Selection.pickDay(token.primary, eventType)
+            else -> Selection.single(token.primary, hasExplicitDay = true, eventType, manufactureDates)
         }
     }
 
-    private fun interpretMonthYear(monthPart: String, yearPart: String): ParsedDate {
-        val month = monthPart.toInt()
-        if (month !in 1..12) {
-            return ParsedDate(date = null, hasExplicitDay = false, ambiguousOrder = false, alternatives = emptyList())
-        }
-        val year = normalizeYear(yearPart.toInt())
-        // Month-only: represent as end of month but flag that the day is not explicit.
-        val representative = YearMonth.of(year, month).atEndOfMonth()
-        return ParsedDate(date = representative, hasExplicitDay = false, ambiguousOrder = false, alternatives = emptyList())
-    }
-
-    private fun scoreConfidence(eventType: EventType, parsed: ParsedDate): Float {
-        var score = 0f
-        if (eventType != EventType.GENERAL) score += 0.4f
-        if (parsed.date != null) score += if (parsed.hasExplicitDay) 0.4f else 0.2f
-        if (parsed.ambiguousOrder) score -= 0.1f
-        return score.coerceIn(0f, 1f)
-    }
-
-    private fun normalizeYear(year: Int): Int = if (year < 100) 2000 + year else year
-
-    private fun safeDate(year: Int, month: Int, day: Int): LocalDate {
-        val safeMonth = month.coerceIn(1, 12)
-        val maxDay = YearMonth.of(year, safeMonth).lengthOfMonth()
-        return LocalDate.of(year, safeMonth, day.coerceIn(1, maxDay))
-    }
+    private fun fallbackEventType(upper: String): EventType =
+        DateRoleClassifier.classify(upper).second ?: EventType.GENERAL
 
     private fun extractTitle(lines: List<String>): String? {
-        val line = lines.firstOrNull { !informationalRegex.containsMatchIn(it.uppercase()) } ?: return null
+        val line = lines.firstOrNull { !INFORMATIONAL.containsMatchIn(it.uppercase()) } ?: return null
         val cleaned = line.replace(Regex("[^A-Za-z0-9 ]"), " ").trim().replace(Regex(" +"), " ")
         if (cleaned.isEmpty()) return null
         return cleaned.split(" ").joinToString(" ") { word ->
@@ -172,11 +112,90 @@ class DefaultMemoryExtractor @Inject constructor() : MemoryExtractor {
         }
     }
 
+    /** Intermediate selection result before mapping to a candidate. */
+    private data class Selection(
+        val date: LocalDate?,
+        val hasExplicitDay: Boolean,
+        val eventType: EventType?,
+        val resolution: DateResolution,
+        val options: List<LocalDate>,
+        val ambiguity: Ambiguity,
+        val confidence: Float,
+    ) {
+        companion object {
+            fun noDate() = Selection(
+                date = null,
+                hasExplicitDay = false,
+                eventType = null,
+                resolution = DateResolution.PICK_DATE,
+                options = emptyList(),
+                ambiguity = Ambiguity.HIGH,
+                confidence = 0f,
+            )
+
+            fun single(
+                date: LocalDate,
+                hasExplicitDay: Boolean,
+                eventType: EventType?,
+                mfg: List<LocalDate>,
+            ): Selection {
+                val conflict = mfg.any { !it.isBefore(date) } // expiry must be after manufacture
+                val base = 0.5f + if (eventType != null) 0.4f else 0f
+                return Selection(
+                    date = date,
+                    hasExplicitDay = hasExplicitDay,
+                    eventType = eventType,
+                    resolution = DateResolution.NONE,
+                    options = listOf(date),
+                    ambiguity = if (conflict) Ambiguity.MEDIUM else Ambiguity.NONE,
+                    confidence = (base - if (conflict) 0.3f else 0f).coerceIn(0f, 1f),
+                )
+            }
+
+            fun pickOrder(options: List<LocalDate>, preview: LocalDate, eventType: EventType?) = Selection(
+                date = preview,
+                hasExplicitDay = true,
+                eventType = eventType,
+                resolution = DateResolution.PICK_ORDER,
+                options = options,
+                ambiguity = Ambiguity.MEDIUM,
+                confidence = 0.45f + if (eventType != null) 0.1f else 0f,
+            )
+
+            fun pickDay(monthEnd: LocalDate, eventType: EventType?) = Selection(
+                date = monthEnd,
+                hasExplicitDay = false,
+                eventType = eventType,
+                resolution = DateResolution.PICK_DAY,
+                options = listOf(monthEnd),
+                ambiguity = Ambiguity.LOW,
+                confidence = 0.5f + if (eventType != null) 0.1f else 0f,
+            )
+
+            fun choose(options: List<LocalDate>, eventType: EventType?) = Selection(
+                date = null,
+                hasExplicitDay = false,
+                eventType = eventType,
+                resolution = DateResolution.PICK_DATE,
+                options = options,
+                ambiguity = Ambiguity.HIGH,
+                confidence = 0.3f,
+            )
+        }
+    }
+
     private companion object {
-        val fullDateRegex = Regex("\\b(\\d{1,2})[/.\\-](\\d{1,2})[/.\\-](\\d{2,4})\\b")
-        val monthYearRegex = Regex("\\b(\\d{1,2})[/.\\-](\\d{2,4})\\b")
-        val actionableRegex = Regex("EXP|EXPIR|BEST BEFORE|BEST BY|USE BY|\\bDUE\\b|PAY BY|RETURN|VALID (THRU|UNTIL|TILL)|WARRANTY|RENEW|SUBSCRIPTION")
-        val nonActionableRegex = Regex("\\b(MFG|MANUFACTUR|PACKED|PKD|BATCH|LOT|SN|SERIAL)\\b")
-        val informationalRegex = Regex("\\b(MFG|MANUFACTURED|BATCH|LOT|EXP|EXPIR|BEST|USE BY|DUE|PAY|BILL|INVOICE|RETURN|WARRANTY|SUBSCRIPTION|RENEW|VALID|BB)\\b")
+        val ROLE_PRIORITY = listOf(
+            DateRole.EXPIRY,
+            DateRole.BILL_DUE,
+            DateRole.RETURN_DEADLINE,
+            DateRole.WARRANTY,
+            DateRole.SUBSCRIPTION,
+            DateRole.DOCUMENT,
+        )
+        val ACTIONABLE_ROLES = ROLE_PRIORITY.toSet()
+        val INFORMATIONAL = Regex(
+            "\\b(MFG|MANUFACTURED|BATCH|LOT|EXP|EXPIR|BEST|USE BY|DUE|PAY|BILL|INVOICE|RETURN|WARRANTY|SUBSCRIPTION|RENEW|VALID|BB)\\b",
+        )
     }
 }

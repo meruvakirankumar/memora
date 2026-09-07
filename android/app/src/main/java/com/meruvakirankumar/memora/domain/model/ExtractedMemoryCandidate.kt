@@ -13,15 +13,25 @@ data class ExtractedMemoryCandidate(
     val confidence: Float,
     val confidenceLevel: ConfidenceLevel,
     val ambiguity: Ambiguity,
-    val alternatives: List<DateAlternative>,
+    val resolutionRequired: DateResolution,
+    val dateOptions: List<LocalDate>,
     val hasExplicitDay: Boolean,
     val rawOcrText: String,
     val normalizedText: String,
 )
 
-/** An alternative interpretation the user can choose during confirmation. */
-data class DateAlternative(
-    val date: LocalDate,
-    val eventType: EventType?,
-    val confidence: Float,
-)
+/** What the user must resolve before the date is trustworthy. */
+enum class DateResolution {
+    /** Confident single date; prefilled. */
+    NONE,
+
+    /** Two readings (e.g. MM/DD vs DD/MM); user picks the correct one from [dateOptions]. */
+    PICK_ORDER,
+
+    /** Only a month/year was found; user must supply the exact day. */
+    PICK_DAY,
+
+    /** No confident date, or several competing dates; user picks or enters one. */
+    PICK_DATE,
+}
+

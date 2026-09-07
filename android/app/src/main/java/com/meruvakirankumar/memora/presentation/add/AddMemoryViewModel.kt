@@ -7,8 +7,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.meruvakirankumar.memora.core.error.AppResult
-import com.meruvakirankumar.memora.domain.model.Ambiguity
 import com.meruvakirankumar.memora.domain.model.ConfidenceLevel
+import com.meruvakirankumar.memora.domain.model.DateResolution
 import com.meruvakirankumar.memora.domain.model.EventType
 import com.meruvakirankumar.memora.domain.model.ExtractedMemoryCandidate
 import com.meruvakirankumar.memora.domain.usecase.ExtractMemoryUseCase
@@ -45,11 +45,23 @@ class AddMemoryViewModel @Inject constructor(
         private set
     var extractionNote by mutableStateOf<String?>(null)
         private set
+    var dateResolution by mutableStateOf(DateResolution.NONE)
+        private set
+    var dateOptions by mutableStateOf<List<LocalDate>>(emptyList())
+        private set
     var reminderLeadDays by mutableStateOf(SaveMemoryUseCase.DEFAULT_LEAD_DAYS)
         private set
 
     fun onReminderLeadDaysChange(value: Int) {
         reminderLeadDays = value.coerceIn(SaveMemoryUseCase.MIN_LEAD_DAYS, SaveMemoryUseCase.MAX_LEAD_DAYS)
+    }
+
+    /** User resolved an ambiguous/multi date by tapping one of the options. */
+    fun onPickDate(date: LocalDate) {
+        dateText = date.toString()
+        dateResolution = DateResolution.NONE
+        dateOptions = emptyList()
+        error = null
     }
 
     init {
@@ -72,20 +84,24 @@ class AddMemoryViewModel @Inject constructor(
         candidate.suggestedTitle?.let { title = it }
         candidate.suggestedEventType?.let { eventType = it }
         candidate.suggestedEventDate?.let { dateText = it.toString() }
+        dateResolution = candidate.resolutionRequired
+        dateOptions = candidate.dateOptions
         extractionNote = noteFor(candidate)
     }
 
-    private fun noteFor(candidate: ExtractedMemoryCandidate): String = when {
-        candidate.suggestedEventDate == null || candidate.ambiguity == Ambiguity.HIGH ->
-            "Memora couldn't find a clear date. Please add it."
-        !candidate.hasExplicitDay ->
-            "Only a month was detected — please confirm the exact day."
-        candidate.ambiguity == Ambiguity.MEDIUM ->
-            "This date could be read two ways — please check it."
-        candidate.confidenceLevel == ConfidenceLevel.HIGH ->
-            "Memora is confident. Review and confirm."
-        else ->
-            "Please review the details before confirming."
+    private fun noteFor(candidate: ExtractedMemoryCandidate): String = when (candidate.resolutionRequired) {
+        DateResolution.PICK_ORDER ->
+            "This date could be read two ways — tap the correct one."
+        DateResolution.PICK_DAY ->
+            "Only a month was detected — set the exact day."
+        DateResolution.PICK_DATE ->
+            "Memora couldn't pin down the date. Pick or enter it."
+        DateResolution.NONE ->
+            if (candidate.confidenceLevel == ConfidenceLevel.HIGH) {
+                "Memora is confident. Review and confirm."
+            } else {
+                "Please review the details before confirming."
+            }
     }
 
     fun onTitleChange(value: String) {

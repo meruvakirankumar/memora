@@ -37,8 +37,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.meruvakirankumar.memora.domain.model.DateResolution
 import com.meruvakirankumar.memora.domain.model.EventType
 import com.meruvakirankumar.memora.presentation.common.displayLabel
+import com.meruvakirankumar.memora.presentation.common.formatDate
 
 private val Cream = Color(0xFFFFFDF7)
 private val DarkGreen = Color(0xFF17312D)
@@ -145,6 +147,33 @@ fun AddMemoryScreen(
 
         viewModel.error?.let { message ->
             Text(message, color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
+        }
+
+        if (viewModel.dateResolution == DateResolution.PICK_ORDER ||
+            viewModel.dateResolution == DateResolution.PICK_DATE
+        ) {
+            FieldLabel(
+                if (viewModel.dateResolution == DateResolution.PICK_ORDER) {
+                    "Which date is correct?"
+                } else {
+                    "Choose the correct date"
+                },
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                viewModel.dateOptions.forEach { option ->
+                    Text(
+                        text = formatDate(option),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                        color = ChipInk,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(ChipBg)
+                            .clickable { viewModel.onPickDate(option) }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                    )
+                }
+            }
         }
 
         FieldLabel("Remind me this many days before")
