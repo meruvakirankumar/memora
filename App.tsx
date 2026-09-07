@@ -60,9 +60,25 @@ export default function App() {
   }, []);
 
   const activeMemories = useMemo(
-    () => memories.filter((memory) => getMemoryStatus(memory) !== 'completed'),
+    () =>
+      memories
+        .filter((memory) => getMemoryStatus(memory) !== 'completed')
+        .sort((first, second) => {
+          const urgencyDelta = statusUrgency(getMemoryStatus(first)) - statusUrgency(getMemoryStatus(second));
+          return urgencyDelta !== 0 ? urgencyDelta : first.dateISO.localeCompare(second.dateISO);
+        }),
     [memories],
   );
+
+  const summary = useMemo(() => {
+    return activeMemories.reduce(
+      (totals, memory) => {
+        totals[getMemoryStatus(memory)] += 1;
+        return totals;
+      },
+      { overdue: 0, dueToday: 0, upcoming: 0, completed: 0 } as Record<MemoryStatus, number>,
+    );
+  }, [activeMemories]);
 
   const completedMemories = useMemo(
     () => memories.filter((memory) => getMemoryStatus(memory) === 'completed'),
@@ -298,25 +314,42 @@ export default function App() {
             {activeMemories.length === 0 ? (
               <Text style={styles.emptyListText}>Confirmed memories will appear here when they need attention.</Text>
             ) : (
-              activeMemories.map((memory) => {
-                const status = getMemoryStatus(memory);
-
-                return (
-                  <View key={memory.id} style={styles.memoryCard}>
-                    <View style={styles.memoryCardHeader}>
-                      <Text style={styles.memoryTitle}>{memory.title}</Text>
-                      <View style={[styles.statusBadge, styles[status]]}>
-                        <Text style={styles.statusText}>{formatStatus(status)}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.memoryMeta}>{toTitleCase(memory.eventType)} on {formatDate(memory.dateISO)}</Text>
-                    <Text style={styles.memorySource} numberOfLines={2}>{memory.sourceText}</Text>
-                    <Pressable style={styles.completeButton} onPress={() => completeMemory(memory.id)}>
-                      <Text style={styles.completeButtonText}>Mark Complete</Text>
-                    </Pressable>
+              <>
+                <View style={styles.summaryStrip}>
+                  <View style={styles.summaryTile}>
+                    <Text style={styles.summaryCount}>{summary.overdue}</Text>
+                    <Text style={styles.summaryTileLabel}>Overdue</Text>
                   </View>
-                );
-              })
+                  <View style={styles.summaryTile}>
+                    <Text style={styles.summaryCount}>{summary.dueToday}</Text>
+                    <Text style={styles.summaryTileLabel}>Due Today</Text>
+                  </View>
+                  <View style={styles.summaryTile}>
+                    <Text style={styles.summaryCount}>{summary.upcoming}</Text>
+                    <Text style={styles.summaryTileLabel}>Upcoming</Text>
+                  </View>
+                </View>
+
+                {activeMemories.map((memory) => {
+                  const status = getMemoryStatus(memory);
+
+                  return (
+                    <View key={memory.id} style={styles.memoryCard}>
+                      <View style={styles.memoryCardHeader}>
+                        <Text style={styles.memoryTitle}>{memory.title}</Text>
+                        <View style={[styles.statusBadge, styles[status]]}>
+                          <Text style={styles.statusText}>{formatStatus(status)}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.memoryMeta}>{toTitleCase(memory.eventType)} on {formatDate(memory.dateISO)}</Text>
+                      <Text style={styles.memorySource} numberOfLines={2}>{memory.sourceText}</Text>
+                      <Pressable style={styles.completeButton} onPress={() => completeMemory(memory.id)}>
+                        <Text style={styles.completeButtonText}>Mark Complete</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </>
             )}
           </View>
 
@@ -510,6 +543,10 @@ function getStatus(dateISO: string): MemoryStatus {
   }
 
   return 'upcoming';
+}
+
+function statusUrgency(status: MemoryStatus) {
+  return { overdue: 0, dueToday: 1, upcoming: 2, completed: 3 }[status];
 }
 
 function parseISODate(dateISO: string) {
@@ -767,6 +804,28 @@ const styles = StyleSheet.create({
     color: '#557068',
     fontSize: 15,
     lineHeight: 22,
+  },
+  summaryStrip: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  summaryTile: {
+    alignItems: 'center',
+    backgroundColor: '#EAF3EE',
+    borderRadius: 14,
+    flex: 1,
+    paddingVertical: 12,
+  },
+  summaryCount: {
+    color: '#15201D',
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  summaryTileLabel: {
+    color: '#557068',
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 2,
   },
   memoryCard: {
     backgroundColor: '#F8F0DD',
