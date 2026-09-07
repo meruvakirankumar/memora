@@ -1,5 +1,6 @@
 package com.meruvakirankumar.memora.presentation.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,8 +16,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ElevatedCard
@@ -27,19 +31,25 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.runtime.LaunchedEffect
 import com.meruvakirankumar.memora.domain.model.MemoryStatus
 import com.meruvakirankumar.memora.presentation.common.displayLabel
 import com.meruvakirankumar.memora.presentation.common.formatDate
@@ -49,9 +59,22 @@ import com.meruvakirankumar.memora.presentation.theme.StatusColors
 @Composable
 fun HomeScreen(
     onAddMemory: () -> Unit,
+    onOpenMemory: (String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val query by viewModel.searchQuery.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { message ->
+            val result = snackbarHostState.showSnackbar(
+                message = message.text,
+                actionLabel = message.actionLabel,
+            )
+            if (result == SnackbarResult.ActionPerformed) message.action?.invoke()
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -64,6 +87,7 @@ fun HomeScreen(
                 ),
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onAddMemory,
@@ -79,27 +103,64 @@ fun HomeScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (state.isEmpty) {
-                item { EmptyState() }
-            } else {
-                item { SummaryRow(state.overdue, state.dueToday, state.upcoming) }
+            item {
+                SearchField(
+                    query = query,
+                    onQueryChange = viewModel::onQueryChange,
+                    onClear = { viewModel.onQueryChange("") },
+                )
+            }
 
-                if (state.active.isNotEmpty()) {
-                    item { SectionHeader("Needs attention") }
-                    items(state.active, key = { it.id }) { memory ->
-                        ActiveMemoryCard(memory) { viewModel.complete(memory.id) }
+            when {
+                state.isNoSearchResults -> item { NoResultsState(query) }
+                state.isEmpty -> item { EmptyState() }
+                else -> {
+                    item { SummaryRow(state.overdue, state.dueToday, state.upcoming) }
+
+                    if (state.active.isNotEmpty()) {
+                        item { SectionHeader("Needs attention") }
+                        items(state.active, key = { it.id }) { memory ->
+                            ActiveMemoryCard(
+                                memory = memory,
+                                onOpen = { onOpenMemory(memory.id) },
+                                onComplete = { viewModel.complete(memory.id) },
+                            )
+                        }
                     }
-                }
 
-                if (state.completed.isNotEmpty()) {
-                    item { SectionHeader("Completed") }
-                    items(state.completed, key = { it.id }) { memory ->
-                        CompletedMemoryCard(memory) { viewModel.delete(memory.id) }
+                    if (state.completed.isNotEmpty()) {
+                        item { SectionHeader("Completed") }
+                        items(state.completed, key = { it.id }) { memory ->
+                            CompletedMemoryCard(
+                                memory = memory,
+                                onOpen = { onOpenMemory(memory.id) },
+                                onDelete = { viewModel.delete(memory.id) },
+                            )
+                        }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SearchField(query: String, onQueryChange: (String) -> Unit, onClear: () -> Unit) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        placeholder = { Text("Search memories") },
+        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = onClear) {
+                    Icon(Icons.Filled.Close, contentDescription = "Clear")
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -148,10 +209,12 @@ private fun StatCard(
 }
 
 @Composable
-private fun ActiveMemoryCard(memory: MemoryUi, onComplete: () -> Unit) {
+private fun ActiveMemoryCard(memory: MemoryUi, onOpen: () -> Unit, onComplete: () -> Unit) {
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
@@ -180,10 +243,12 @@ private fun ActiveMemoryCard(memory: MemoryUi, onComplete: () -> Unit) {
 }
 
 @Composable
-private fun CompletedMemoryCard(memory: MemoryUi, onDelete: () -> Unit) {
+private fun CompletedMemoryCard(memory: MemoryUi, onOpen: () -> Unit, onDelete: () -> Unit) {
     OutlinedCard(
         colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen),
     ) {
         Row(
             modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
@@ -233,26 +298,44 @@ private fun StatusPill(status: MemoryStatus) {
 
 @Composable
 private fun EmptyState() {
+    CenteredMessage(
+        icon = Icons.Outlined.Inbox,
+        title = "Nothing to remember yet",
+        body = "Capture a label, bill, or document and Memora will remind you at the right time.",
+    )
+}
+
+@Composable
+private fun NoResultsState(query: String) {
+    CenteredMessage(
+        icon = Icons.Outlined.SearchOff,
+        title = "No matches",
+        body = "Nothing matches \"$query\". Try a different search.",
+    )
+}
+
+@Composable
+private fun CenteredMessage(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    body: String,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 96.dp),
+            .padding(top = 72.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
-            Icons.Outlined.Inbox,
+            icon,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(56.dp),
         )
         Spacer(Modifier.height(16.dp))
+        Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
         Text(
-            "Nothing to remember yet",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Text(
-            "Capture a label, bill, or document and Memora will remind you at the right time.",
+            body,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 6.dp, start = 24.dp, end = 24.dp),

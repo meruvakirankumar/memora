@@ -18,6 +18,16 @@ data class HomeUiState(
     val overdue: Int = 0,
     val dueToday: Int = 0,
     val upcoming: Int = 0,
+    val query: String = "",
+    val hasAnyMemories: Boolean = false,
 ) {
     val isEmpty: Boolean get() = active.isEmpty() && completed.isEmpty()
+    val isNoSearchResults: Boolean get() = isEmpty && query.isNotBlank() && hasAnyMemories
 }
+
+/** A transient user message with an optional undo action. */
+data class HomeMessage(
+    val text: String,
+    val actionLabel: String?,
+    val action: (() -> Unit)?,
+)

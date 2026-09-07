@@ -9,6 +9,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.meruvakirankumar.memora.presentation.add.AddMemoryScreen
 import com.meruvakirankumar.memora.presentation.capture.CaptureScreen
+import com.meruvakirankumar.memora.presentation.detail.MemoryDetailScreen
 import com.meruvakirankumar.memora.presentation.home.HomeScreen
 
 private object Routes {
@@ -16,6 +17,7 @@ private object Routes {
     const val CAPTURE = "capture"
     const val ADD = "add"
     const val ADD_WITH_IMAGE = "add?imageUri={imageUri}"
+    const val DETAIL = "detail/{memoryId}"
 }
 
 @Composable
@@ -24,7 +26,10 @@ fun MemoraNavHost() {
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
-            HomeScreen(onAddMemory = { navController.navigate(Routes.CAPTURE) })
+            HomeScreen(
+                onAddMemory = { navController.navigate(Routes.CAPTURE) },
+                onOpenMemory = { id -> navController.navigate("detail/$id") },
+            )
         }
         composable(Routes.CAPTURE) {
             CaptureScreen(
@@ -47,6 +52,12 @@ fun MemoraNavHost() {
                 onSaved = { navController.popBackStack(Routes.HOME, inclusive = false) },
                 onBack = { navController.popBackStack() },
             )
+        }
+        composable(
+            route = Routes.DETAIL,
+            arguments = listOf(navArgument("memoryId") { type = NavType.StringType }),
+        ) {
+            MemoryDetailScreen(onBack = { navController.popBackStack() })
         }
     }
 }
