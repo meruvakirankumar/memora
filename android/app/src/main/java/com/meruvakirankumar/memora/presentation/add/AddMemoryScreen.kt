@@ -15,8 +15,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -27,7 +30,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +53,9 @@ import com.meruvakirankumar.memora.domain.model.DateResolution
 import com.meruvakirankumar.memora.domain.model.EventType
 import com.meruvakirankumar.memora.presentation.common.displayLabel
 import com.meruvakirankumar.memora.presentation.common.formatDate
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -58,6 +66,7 @@ fun AddMemoryScreen(
 ) {
     val context = LocalContext.current
     var thumbnail by remember { mutableStateOf<ImageBitmap?>(null) }
+    var showDatePicker by remember { mutableStateOf(false) }
     LaunchedEffect(viewModel.imageUri) {
         thumbnail = viewModel.imageUri?.let { uri ->
             runCatching {
@@ -156,8 +165,37 @@ fun AddMemoryScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 isError = viewModel.error != null,
                 supportingText = viewModel.error?.let { { Text(it) } },
+                trailingIcon = {
+                    IconButton(onClick = { showDatePicker = true }) {
+                        Icon(Icons.Filled.CalendarMonth, contentDescription = "Pick date")
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            if (showDatePicker) {
+                val pickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = isoToUtcMillis(viewModel.dateText),
+                )
+                DatePickerDialog(
+                    onDismissRequest = { showDatePicker = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            pickerState.selectedDateMillis?.let { millis ->
+                                viewModel.onPickDate(
+                                    Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate(),
+                                )
+                            }
+                            showDatePicker = false
+                        }) { Text("OK") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                    },
+                ) {
+                    DatePicker(state = pickerState)
+                }
+            }
 
             if (viewModel.dateResolution == DateResolution.PICK_ORDER ||
                 viewModel.dateResolution == DateResolution.PICK_DATE
@@ -212,3 +250,7 @@ private fun SectionLabel(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
+
+private fun isoToUtcMillis(iso: String): Long? = runCatching {
+    LocalDate.parse(iso).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+}.getOrNull()
