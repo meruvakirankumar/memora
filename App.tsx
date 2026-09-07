@@ -11,6 +11,7 @@ import {
   Pressable,
   SafeAreaView,
   ScrollView,
+  StatusBar as RNStatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -580,11 +581,9 @@ function normalizeDateInput(dateText: string) {
 }
 
 function formatDate(dateISO: string) {
-  return new Intl.DateTimeFormat('en', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(parseISODate(dateISO));
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const date = parseISODate(dateISO);
+  return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
 }
 
 function formatStatus(status: MemoryStatus) {
@@ -606,6 +605,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F6F2E8',
+    paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight ?? 24 : 0,
   },
   keyboardView: {
     flex: 1,
